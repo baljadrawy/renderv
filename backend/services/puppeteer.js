@@ -34,48 +34,157 @@ async function captureFrames({ htmlPath, sessionDir, width, height, duration, fp
       deviceScaleFactor: 1
     });
 
+    // حقن سكربت التحكم بالوقت الافتراضي قبل تحميل الصفحة
+    await page.evaluateOnNewDocument((frameIntervalMs) => {
+      // الوقت الافتراضي
+      window.__virtualTime = 0;
+      window.__timers = [];
+      window.__timerIdCounter = 1;
+      window.__rafCallbacks = [];
+      window.__rafIdCounter = 1;
+
+      // حفظ الدوال الأصلية
+      const originalSetTimeout = window.setTimeout;
+      const originalSetInterval = window.setInterval;
+      const originalClearTimeout = window.clearTimeout;
+      const originalClearInterval = window.clearInterval;
+      const originalDateNow = Date.now;
+      const originalPerfNow = performance.now.bind(performance);
+      const originalRAF = window.requestAnimationFrame;
+      const originalCAF = window.cancelAnimationFrame;
+
+      // استبدال Date.now
+      Date.now = function() {
+        return window.__virtualTime;
+      };
+
+      // استبدال performance.now
+      performance.now = function() {
+        return window.__virtualTime;
+      };
+
+      // استبدال setTimeout
+      window.setTimeout = function(callback, delay = 0, ...args) {
+        const id = window.__timerIdCounter++;
+        const executeAt = window.__virtualTime + delay;
+        window.__timers.push({
+          id,
+          callback,
+          args,
+          executeAt,
+          type: 'timeout'
+        });
+        return id;
+      };
+
+      // استبدال setInterval
+      window.setInterval = function(callback, delay = 0, ...args) {
+        const id = window.__timerIdCounter++;
+        const executeAt = window.__virtualTime + delay;
+        window.__timers.push({
+          id,
+          callback,
+          args,
+          executeAt,
+          delay,
+          type: 'interval'
+        });
+        return id;
+      };
+
+      // استبدال clearTimeout
+      window.clearTimeout = function(id) {
+        window.__timers = window.__timers.filter(t => t.id !== id);
+      };
+
+      // استبدال clearInterval
+      window.clearInterval = function(id) {
+        window.__timers = window.__timers.filter(t => t.id !== id);
+      };
+
+      // استبدال requestAnimationFrame
+      window.requestAnimationFrame = function(callback) {
+        const id = window.__rafIdCounter++;
+        window.__rafCallbacks.push({ id, callback });
+        return id;
+      };
+
+      // استبدال cancelAnimationFrame
+      window.cancelAnimationFrame = function(id) {
+        window.__rafCallbacks = window.__rafCallbacks.filter(r => r.id !== id);
+      };
+
+      // دالة لتقديم الوقت الافتراضي
+      window.__advanceTime = function(newTime) {
+        const oldTime = window.__virtualTime;
+        window.__virtualTime = newTime;
+
+        // تنفيذ requestAnimationFrame callbacks
+        const rafCallbacks = [...window.__rafCallbacks];
+        window.__rafCallbacks = [];
+        rafCallbacks.forEach(({ callback }) => {
+          try {
+            callback(window.__virtualTime);
+          } catch (e) {
+            console.error('RAF callback error:', e);
+          }
+        });
+
+        // تنفيذ timers المجدولة
+        const timersToExecute = window.__timers.filter(t => t.executeAt <= newTime);
+        window.__timers = window.__timers.filter(t => t.executeAt > newTime);
+
+        // إعادة جدولة intervals
+        timersToExecute.forEach(timer => {
+          if (timer.type === 'interval') {
+            window.__timers.push({
+              ...timer,
+              executeAt: timer.executeAt + timer.delay
+            });
+          }
+        });
+
+        // ترتيب حسب وقت التنفيذ
+        timersToExecute.sort((a, b) => a.executeAt - b.executeAt);
+
+        // تنفيذ callbacks
+        timersToExecute.forEach(timer => {
+          try {
+            timer.callback(...timer.args);
+          } catch (e) {
+            console.error('Timer callback error:', e);
+          }
+        });
+
+        // تحديث CSS animations
+        document.querySelectorAll('*').forEach(el => {
+          const computed = getComputedStyle(el);
+          if (computed.animationName && computed.animationName !== 'none') {
+            el.style.animationDelay = `-${newTime}ms`;
+            el.style.animationPlayState = 'paused';
+          }
+        });
+
+        // تحديث Web Animations API
+        document.getAnimations().forEach(animation => {
+          animation.currentTime = newTime;
+        });
+      };
+
+    }, frameInterval);
+
     // تحميل الصفحة
     await page.goto(`file://${htmlPath}`, { 
       waitUntil: ['load', 'networkidle0'],
       timeout: 30000
     });
 
-    // انتظار تحميل كامل
-    await page.waitForTimeout(500);
+    // انتظار قصير للتهيئة
+    await page.waitForTimeout(100);
 
-    // حقن سكربت التحكم بالوقت
+    // تشغيل الإطار الأول (الوقت 0)
     await page.evaluate(() => {
-      // إيقاف جميع الأنيميشن CSS
-      const style = document.createElement('style');
-      style.id = 'animation-control';
-      style.textContent = `
-        *, *::before, *::after {
-          animation-play-state: paused !important;
-          transition: none !important;
-        }
-      `;
-      document.head.appendChild(style);
-
-      // حفظ الوقت الافتراضي
-      window.__animationTime = 0;
-      
-      // إنشاء دالة لتحديث وقت الأنيميشن
-      window.__setAnimationTime = function(timeMs) {
-        window.__animationTime = timeMs;
-        
-        // تحديث CSS animations
-        document.querySelectorAll('*').forEach(el => {
-          const computed = getComputedStyle(el);
-          if (computed.animationName && computed.animationName !== 'none') {
-            el.style.animationDelay = `-${timeMs}ms`;
-          }
-        });
-        
-        // تحديث Web Animations API
-        document.getAnimations().forEach(animation => {
-          animation.currentTime = timeMs;
-        });
-      };
+      window.__advanceTime(0);
     });
 
     logger.info(`[${jobId}] بدء التقاط ${totalFrames} إطار...`);
@@ -85,13 +194,13 @@ async function captureFrames({ htmlPath, sessionDir, width, height, duration, fp
       const framePath = path.join(sessionDir, `frame_${String(i).padStart(5, '0')}.png`);
       const currentTime = i * frameInterval;
       
-      // تعيين وقت الأنيميشن للإطار الحالي
+      // تقديم الوقت الافتراضي
       await page.evaluate((time) => {
-        window.__setAnimationTime(time);
+        window.__advanceTime(time);
       }, currentTime);
       
       // انتظار قصير للسماح بتحديث الرسم
-      await page.waitForTimeout(10);
+      await page.waitForTimeout(5);
       
       await page.screenshot({
         path: framePath,
