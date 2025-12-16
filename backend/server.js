@@ -8,6 +8,7 @@ const winston = require('winston');
 const rateLimit = require('express-rate-limit');
 
 const renderRouter = require('./routes/render');
+const projectsRouter = require('./routes/projects');
 const { scheduleCleanup } = require('./utils/cleanup');
 
 const app = express();
@@ -81,6 +82,7 @@ app.use('/api/', limiter);
 
 // Routes
 app.use('/api/render', renderRouter);
+app.use('/api/projects', projectsRouter);
 
 // تقديم الفيديوهات
 app.use('/output', express.static(process.env.OUTPUT_DIR || './output'));
