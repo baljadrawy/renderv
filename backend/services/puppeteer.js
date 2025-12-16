@@ -191,7 +191,7 @@ async function captureFrames({ htmlPath, sessionDir, width, height, duration, fp
 
     // التقاط الإطارات
     for (let i = 0; i < totalFrames; i++) {
-      const framePath = path.join(sessionDir, `frame_${String(i).padStart(5, '0')}.png`);
+      const framePath = path.join(sessionDir, `frame_${String(i).padStart(5, '0')}.jpg`);
       const currentTime = i * frameInterval;
       
       // تقديم الوقت الافتراضي
@@ -204,7 +204,8 @@ async function captureFrames({ htmlPath, sessionDir, width, height, duration, fp
       
       await page.screenshot({
         path: framePath,
-        type: 'png',
+        type: 'jpeg',
+        quality: 95,
         omitBackground: false,
         captureBeyondViewport: false
       });

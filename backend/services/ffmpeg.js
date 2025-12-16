@@ -10,7 +10,7 @@ function createVideo({ framesDir, outputDir, format, fps, width, height, jobId, 
   return new Promise((resolve, reject) => {
     const outputFileName = `video_${jobId}_${Date.now()}.${format.toLowerCase()}`;
     const outputPath = path.join(outputDir, outputFileName);
-    const inputPattern = path.join(framesDir, 'frame_%05d.png');
+    const inputPattern = path.join(framesDir, 'frame_%05d.jpg');
 
     const command = ffmpeg()
       .input(inputPattern)
@@ -22,7 +22,7 @@ function createVideo({ framesDir, outputDir, format, fps, width, height, jobId, 
         .videoCodec('libx264')
         .outputOptions([
           '-crf 18',              // جودة عالية جداً
-          '-preset fast',         // سرعة أعلى
+          '-preset veryfast',      // سرعة أعلى
           '-pix_fmt yuv420p',     // توافق عالي
           '-movflags +faststart'  // للتشغيل السريع على الويب
         ]);
