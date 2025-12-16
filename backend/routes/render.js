@@ -155,28 +155,21 @@ router.post('/', async (req, res) => {
     // إنشاء مجلد الجلسة
     await fs.mkdir(sessionDir, { recursive: true });
 
-    // 1. إنشاء ملف HTML مع دعم الخطوط العربية والإيموجي
+    // 1. إنشاء ملف HTML مع دعم الخطوط العربية والإيموجي (خطوط النظام)
     const fullHTML = `
 <!DOCTYPE html>
 <html>
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@200;300;400;500;600;700;800;900&family=Noto+Color+Emoji&family=Tajawal:wght@200;300;400;500;700;800;900&display=block" rel="stylesheet">
   <style>
-    @font-face {
-      font-family: 'Noto Color Emoji';
-      src: url(https://fonts.gstatic.com/s/notocoloremoji/v30/Yq6P-KqIXTD0t4D9z1ESnKM3-HpFabsE4tq3luCC7p-aXxcn.woff2) format('woff2');
-    }
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body { 
       margin: 0; 
       padding: 0; 
       overflow: hidden;
       background: #000;
-      font-family: 'Cairo', 'Tajawal', 'Noto Color Emoji', sans-serif;
+      font-family: 'Noto Sans Arabic', 'Noto Sans', 'Noto Color Emoji', sans-serif;
     }
     ${css}
   </style>

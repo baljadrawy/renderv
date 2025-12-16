@@ -4,7 +4,7 @@ expertMode = true
 
 [nix]
 channel = "stable-25_05"
-packages = ["ffmpeg", "chromium"]
+packages = ["ffmpeg", "chromium", "noto-fonts", "noto-fonts-color-emoji", "noto-fonts-cjk-sans"]
 
 [workflows]
 runButton = "Project"

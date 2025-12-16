@@ -18,11 +18,14 @@ async function captureFrames({ htmlPath, sessionDir, width, height, duration, fp
         '--disable-accelerated-2d-canvas',
         '--disable-gpu',
         '--disable-web-security',
+        '--font-render-hinting=none',
+        '--disable-font-subpixel-positioning',
         '--window-size=' + width + ',' + height
       ],
       defaultViewport: {
         width,
-        height
+        height,
+        deviceScaleFactor: 2
       }
     });
 
@@ -31,7 +34,7 @@ async function captureFrames({ htmlPath, sessionDir, width, height, duration, fp
     await page.setViewport({ 
       width, 
       height,
-      deviceScaleFactor: 1
+      deviceScaleFactor: 2
     });
 
     // حقن سكربت التحكم بالوقت الافتراضي قبل تحميل الصفحة
@@ -205,7 +208,7 @@ async function captureFrames({ htmlPath, sessionDir, width, height, duration, fp
 
     // التقاط الإطارات
     for (let i = 0; i < totalFrames; i++) {
-      const framePath = path.join(sessionDir, `frame_${String(i).padStart(5, '0')}.jpg`);
+      const framePath = path.join(sessionDir, `frame_${String(i).padStart(5, '0')}.png`);
       const currentTime = i * frameInterval;
       
       // تقديم الوقت الافتراضي
@@ -218,8 +221,7 @@ async function captureFrames({ htmlPath, sessionDir, width, height, duration, fp
       
       await page.screenshot({
         path: framePath,
-        type: 'jpeg',
-        quality: 95,
+        type: 'png',
         omitBackground: false,
         captureBeyondViewport: false
       });
