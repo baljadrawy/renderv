@@ -1,64 +1,197 @@
-# Web to Video Converter
+# محول كود الويب إلى فيديو | Web to Video Converter
 
-## Overview
-A web application with Arabic interface that converts HTML/CSS/JavaScript code to high-quality videos (MP4/GIF) using Puppeteer and FFmpeg.
+## نظرة عامة | Overview
+تطبيق ويب بواجهة عربية يحوّل أكواد HTML/CSS/JavaScript إلى فيديوهات (MP4) أو صور متحركة (GIF) عالية الجودة. مثالي لإنشاء محتوى للسوشيال ميديا مثل Reels و TikTok و Stories.
 
-## Project Structure
+A web application with Arabic interface that converts HTML/CSS/JavaScript animation code into high-quality videos (MP4) or animated images (GIF).
+
+---
+
+## المميزات | Features
+
+### المميزات الأساسية
+- **واجهة عربية كاملة** - تصميم RTL سهل الاستخدام
+- **محرر كود متعدد التبويبات** - HTML, CSS, JavaScript
+- **معاينة مباشرة** - شاهد الأنيميشن قبل التحويل
+- **قوالب جاهزة** - تدرجات، جزيئات، نصوص متحركة، أشكال
+
+### خيارات الإخراج
+- **الدقة:**
+  - 📱 ريلز/تيكتوك (1080×1920) - عمودي
+  - ⬜ مربع (1080×1080) - انستا
+  - 🖥️ أفقي (1920×1080) - يوتيوب
+- **التنسيق:** MP4 أو GIF
+- **المدة:** 1-60 ثانية
+- **معدل الإطارات:** 24, 30, 60 FPS
+
+### مميزات متقدمة
+- **نظام الوقت الافتراضي** - التقاط دقيق للأنيميشنات JavaScript
+- **شريط تقدم مباشر** - عبر Server-Sent Events (SSE)
+- **حفظ المشاريع** - في قاعدة البيانات PostgreSQL
+- **زر المشاركة** - مشاركة مباشرة للسوشيال ميديا (على الجوال)
+- **دعم الخطوط العربية والإيموجي** - عبر خطوط Noto
+
+---
+
+## هيكل المشروع | Project Structure
+
 ```
 ├── backend/
-│   ├── server.js          # Express server (main entry point)
+│   ├── server.js              # خادم Express الرئيسي
 │   ├── middleware/
-│   │   └── auth.js        # Authentication middleware
+│   │   └── auth.js            # التحقق من الهوية
 │   ├── routes/
-│   │   ├── render.js      # API routes for rendering
-│   │   └── projects.js    # Project save/load API
+│   │   ├── render.js          # API التحويل
+│   │   └── projects.js        # API المشاريع
 │   ├── services/
-│   │   ├── ffmpeg.js      # FFmpeg video processing
-│   │   └── puppeteer.js   # Browser frame capture with virtual time
+│   │   ├── ffmpeg.js          # معالجة الفيديو
+│   │   └── puppeteer.js       # التقاط الإطارات
 │   └── utils/
-│       └── cleanup.js     # Temporary file cleanup
+│       └── cleanup.js         # تنظيف الملفات المؤقتة
+│
 ├── frontend/
-│   ├── index.html         # Main web interface (Arabic)
-│   ├── css/style.css      # Styling
+│   ├── index.html             # الصفحة الرئيسية
+│   ├── css/
+│   │   └── style.css          # التنسيقات
 │   └── js/
-│       ├── app.js         # Main application logic
-│       ├── api.js         # API communication with SSE progress
-│       ├── preview.js     # Live preview management
-│       ├── projects.js    # Project save/load UI
-│       └── templates.js   # Animation templates
-├── temp/                  # Temporary files (auto-created)
-├── output/                # Generated videos (auto-created)
-└── logs/                  # Application logs (auto-created)
+│       ├── app.js             # المنطق الرئيسي
+│       ├── api.js             # الاتصال بالـ API
+│       ├── preview.js         # إدارة المعاينة
+│       ├── projects.js        # حفظ/تحميل المشاريع
+│       └── templates.js       # القوالب الجاهزة
+│
+├── temp/                      # ملفات مؤقتة (تُنشأ تلقائياً)
+├── output/                    # الفيديوهات المُنتجة (تُنشأ تلقائياً)
+└── logs/                      # سجلات التطبيق (تُنشأ تلقائياً)
 ```
 
-## Tech Stack
-- **Backend**: Node.js with Express
-- **Database**: PostgreSQL (for saving projects)
-- **Video Processing**: Puppeteer (browser automation) + FFmpeg (video encoding)
-- **Frontend**: Vanilla HTML/CSS/JavaScript
+---
 
-## Running Locally
-The application runs on port 5000. The workflow is configured to start automatically.
+## المتطلبات | Requirements
 
-## Key Features
-- Arabic user interface
-- Code editor with tabs for HTML/CSS/JavaScript
-- Live animation preview with restart control
-- Virtual time control for accurate JavaScript animation capture
-- Real-time progress bar using Server-Sent Events (SSE)
-- Optimized JPEG frame capture for faster conversion
-- Multiple output resolutions (Reels/TikTok, Square, Horizontal)
-- MP4 and GIF formats
-- Customizable duration and FPS
-- Project saving/loading (code only, no output files)
+### متطلبات النظام
+- Node.js 20+
+- PostgreSQL (قاعدة بيانات)
+- FFmpeg (معالجة الفيديو)
+- Chromium (متصفح للتقاط الإطارات)
 
-## Technical Notes
-- Virtual time system overrides setTimeout, setInterval, Date.now(), performance.now(), and requestAnimationFrame
-- FFmpeg uses "veryfast" preset for faster encoding
-- Frame capture uses JPEG (quality 95) instead of PNG for speed
+### خطوط النظام (للعربي والإيموجي)
+- Noto Sans Arabic
+- Noto Color Emoji
+- Noto Sans CJK
 
-## Dependencies
-- Node.js 20
-- FFmpeg (system)
-- Chromium (system)
-- PostgreSQL (database)
+---
+
+## التثبيت | Installation
+
+### على Replit (تلقائي)
+1. افتح المشروع على Replit
+2. الخادم يعمل تلقائياً على المنفذ 5000
+
+### التثبيت اليدوي
+
+```bash
+# 1. استنساخ المشروع
+git clone <repository-url>
+cd web-to-video-converter
+
+# 2. تثبيت الاعتماديات
+npm install
+
+# 3. تثبيت متطلبات النظام (Ubuntu/Debian)
+sudo apt update
+sudo apt install -y ffmpeg chromium-browser
+sudo apt install -y fonts-noto fonts-noto-color-emoji fonts-noto-cjk
+
+# 4. إعداد قاعدة البيانات PostgreSQL
+# أنشئ قاعدة بيانات واضبط DATABASE_URL
+
+# 5. المتغيرات البيئية
+export DATABASE_URL="postgresql://user:password@host:5432/database"
+export PORT=5000
+export CHROMIUM_PATH=$(which chromium-browser)
+
+# 6. تشغيل الخادم
+node backend/server.js
+```
+
+---
+
+## الاستخدام | Usage
+
+### طريقة الاستخدام
+1. **اكتب الكود** - أدخل HTML/CSS/JavaScript في المحررات
+2. **معاينة** - شاهد النتيجة في نافذة المعاينة
+3. **اختر الإعدادات** - الدقة، التنسيق، المدة، FPS
+4. **حوّل** - اضغط "تحويل إلى فيديو"
+5. **حمّل أو شارك** - حمّل الملف أو شاركه مباشرة
+
+### اختصارات لوحة المفاتيح
+- `Ctrl/Cmd + S` - حفظ الكود
+- `Ctrl/Cmd + Enter` - بدء التحويل
+
+---
+
+## الـ API | API Reference
+
+### POST /api/render
+بدء عملية التحويل
+
+```json
+{
+  "html": "<div>...</div>",
+  "css": "body { ... }",
+  "js": "console.log('...')",
+  "resolution": "HD_Vertical",
+  "format": "MP4",
+  "duration": 15,
+  "fps": 30
+}
+```
+
+### GET /api/render/progress/:jobId
+الاشتراك في تحديثات التقدم (SSE)
+
+### GET /api/projects
+جلب المشاريع المحفوظة
+
+### POST /api/projects
+حفظ مشروع جديد
+
+### DELETE /api/projects/:id
+حذف مشروع
+
+---
+
+## الإعدادات التقنية | Technical Configuration
+
+### إعدادات الأداء
+- **JPEG Quality:** 98% (توازن بين الجودة والسرعة)
+- **Device Scale Factor:** 1 (أسرع من 2)
+- **FFmpeg Preset:** fast
+- **FFmpeg CRF:** 16 (جودة عالية)
+
+### نظام الوقت الافتراضي
+يتجاوز التطبيق الدوال التالية لالتقاط دقيق للأنيميشنات:
+- `setTimeout` / `setInterval`
+- `Date.now()` / `performance.now()`
+- `requestAnimationFrame`
+
+---
+
+## تفضيلات المستخدم | User Preferences
+- واجهة باللغة العربية
+- دعم كامل للنصوص العربية والإيموجي في الفيديو
+- تحسين السرعة مع الحفاظ على الجودة
+
+---
+
+## التحديثات الأخيرة | Recent Changes
+
+### ديسمبر 2025
+- إضافة زر المشاركة (Web Share API)
+- تحسين سرعة المعالجة (JPEG 98%, preset fast)
+- إضافة دعم الخطوط العربية والإيموجي
+- إضافة نظام حفظ المشاريع
+- إضافة شريط التقدم المباشر (SSE)
+- إضافة زر إعادة تشغيل المعاينة
