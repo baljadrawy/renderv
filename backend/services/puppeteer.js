@@ -179,8 +179,22 @@ async function captureFrames({ htmlPath, sessionDir, width, height, duration, fp
       timeout: 30000
     });
 
-    // انتظار قصير للتهيئة
-    await page.waitForTimeout(100);
+    // انتظار تحميل الخطوط
+    logger.info(`[${jobId}] انتظار تحميل الخطوط...`);
+    await page.evaluate(() => {
+      return new Promise((resolve) => {
+        if (document.fonts && document.fonts.ready) {
+          document.fonts.ready.then(() => {
+            resolve();
+          });
+        } else {
+          resolve();
+        }
+      });
+    });
+    
+    // انتظار إضافي للتأكد من تحميل الخطوط والموارد
+    await page.waitForTimeout(500);
 
     // تشغيل الإطار الأول (الوقت 0)
     await page.evaluate(() => {
