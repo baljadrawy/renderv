@@ -71,7 +71,7 @@ router.post('/', async (req, res) => {
     });
   }
 
-  const sessionDir = path.join(process.env.TEMP_DIR || './temp', jobId);
+  const sessionDir = path.resolve(process.env.TEMP_DIR || './temp', jobId);
   
   try {
     logger.info(`[${jobId}] بدء عملية جديدة - ${resolution} - ${duration}s - ${format}`);
