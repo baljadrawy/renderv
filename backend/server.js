@@ -11,7 +11,7 @@ const renderRouter = require('./routes/render');
 const { scheduleCleanup } = require('./utils/cleanup');
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 5000;
 
 // Logger
 const logger = winston.createLogger({
