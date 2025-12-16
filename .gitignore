@@ -1,0 +1,45 @@
+# Node modules
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Environment variables
+.env
+.env.local
+.env.production
+
+# Output files
+output/
+temp/
+logs/
+
+# OS files
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+
+# IDE
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# PM2
+.pm2/
+ecosystem.config.js
+
+# Build files
+dist/
+build/
+
+# Temporary files
+*.tmp
+*.temp
+*.log
+
+# Lock files (optional - uncomment if needed)
+# package-lock.json
+# yarn.lock
