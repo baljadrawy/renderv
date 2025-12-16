@@ -6,7 +6,7 @@ if (process.env.FFMPEG_PATH) {
   ffmpeg.setFfmpegPath(process.env.FFMPEG_PATH);
 }
 
-function createVideo({ framesDir, outputDir, format, fps, width, height, jobId }) {
+function createVideo({ framesDir, outputDir, format, fps, width, height, jobId, onProgress }) {
   return new Promise((resolve, reject) => {
     const outputFileName = `video_${jobId}_${Date.now()}.${format.toLowerCase()}`;
     const outputPath = path.join(outputDir, outputFileName);
@@ -17,12 +17,12 @@ function createVideo({ framesDir, outputDir, format, fps, width, height, jobId }
       .inputFPS(fps);
 
     if (format === 'MP4') {
-      // إعدادات MP4 عالية الجودة
+      // إعدادات MP4 عالية الجودة وسريعة
       command
         .videoCodec('libx264')
         .outputOptions([
           '-crf 18',              // جودة عالية جداً
-          '-preset medium',       // توازن بين السرعة والجودة
+          '-preset fast',         // سرعة أعلى
           '-pix_fmt yuv420p',     // توافق عالي
           '-movflags +faststart'  // للتشغيل السريع على الويب
         ]);
@@ -44,6 +44,9 @@ function createVideo({ framesDir, outputDir, format, fps, width, height, jobId }
       .on('progress', (progress) => {
         if (progress.percent) {
           const percent = Math.round(progress.percent);
+          if (onProgress) {
+            onProgress(percent);
+          }
           if (percent % 10 === 0) {
             logger.info(`[${jobId}] الترميز: ${percent}%`);
           }
@@ -51,6 +54,7 @@ function createVideo({ framesDir, outputDir, format, fps, width, height, jobId }
       })
       .on('end', () => {
         logger.info(`[${jobId}] ✅ FFmpeg اكتمل: ${outputFileName}`);
+        if (onProgress) onProgress(100);
         resolve(outputPath);
       })
       .on('error', (err) => {

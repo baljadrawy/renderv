@@ -1,7 +1,7 @@
 const puppeteer = require('puppeteer');
 const path = require('path');
 
-async function captureFrames({ htmlPath, sessionDir, width, height, duration, fps, jobId }) {
+async function captureFrames({ htmlPath, sessionDir, width, height, duration, fps, jobId, onProgress }) {
   const totalFrames = duration * fps;
   const frameInterval = 1000 / fps;
   
@@ -209,15 +209,22 @@ async function captureFrames({ htmlPath, sessionDir, width, height, duration, fp
         captureBeyondViewport: false
       });
 
+      // تحديث التقدم
+      const progress = Math.round((i / totalFrames) * 100);
+      if (onProgress && i % Math.ceil(fps / 2) === 0) {
+        onProgress(progress);
+      }
+
       // Log التقدم كل ثانية
       if (i % fps === 0) {
-        const progress = Math.round((i / totalFrames) * 100);
         logger.info(`[${jobId}] التقاط: ${progress}%`);
       }
     }
 
     await browser.close();
     logger.info(`[${jobId}] ✅ اكتمل التقاط ${totalFrames} إطار`);
+    
+    if (onProgress) onProgress(100);
     
     return sessionDir;
 

@@ -14,10 +14,74 @@ const RESOLUTIONS = {
   'HD_Horizontal': { width: 1920, height: 1080, name: 'أفقي' }
 };
 
-// حماية بسيطة (اختياري - يمكن إزالته للاستخدام الشخصي)
+// تخزين حالة المهام
+const jobs = new Map();
+
+// دالة لتحديث حالة المهمة
+function updateJobProgress(jobId, progress, stage, message) {
+  const job = jobs.get(jobId);
+  if (job) {
+    job.progress = progress;
+    job.stage = stage;
+    job.message = message;
+    // إرسال التحديث لجميع المستمعين
+    job.listeners.forEach(listener => {
+      try {
+        listener.write(`data: ${JSON.stringify({ progress, stage, message })}\n\n`);
+      } catch (e) {}
+    });
+  }
+}
+
+// تصدير الدالة للاستخدام في puppeteer و ffmpeg
+global.updateJobProgress = updateJobProgress;
+
+// حماية بسيطة (اختياري)
 if (process.env.AUTH_TOKEN) {
   router.use(authMiddleware);
 }
+
+// SSE endpoint للتقدم
+router.get('/progress/:jobId', (req, res) => {
+  const { jobId } = req.params;
+  
+  res.writeHead(200, {
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache',
+    'Connection': 'keep-alive',
+    'Access-Control-Allow-Origin': '*'
+  });
+
+  // إنشاء المهمة إذا لم تكن موجودة
+  if (!jobs.has(jobId)) {
+    jobs.set(jobId, {
+      progress: 0,
+      stage: 'waiting',
+      message: 'في انتظار البدء...',
+      listeners: []
+    });
+  }
+
+  const job = jobs.get(jobId);
+  job.listeners.push(res);
+
+  // إرسال الحالة الحالية
+  res.write(`data: ${JSON.stringify({ progress: job.progress, stage: job.stage, message: job.message })}\n\n`);
+
+  // إزالة المستمع عند الإغلاق
+  req.on('close', () => {
+    const idx = job.listeners.indexOf(res);
+    if (idx > -1) job.listeners.splice(idx, 1);
+    // تنظيف المهمة بعد دقيقة إذا لم يكن هناك مستمعين
+    if (job.listeners.length === 0) {
+      setTimeout(() => {
+        if (jobs.has(jobId) && jobs.get(jobId).listeners.length === 0) {
+          jobs.delete(jobId);
+        }
+      }, 60000);
+    }
+  });
+});
 
 router.post('/', async (req, res) => {
   const startTime = Date.now();
@@ -71,10 +135,22 @@ router.post('/', async (req, res) => {
     });
   }
 
+  // إنشاء المهمة
+  jobs.set(jobId, {
+    progress: 0,
+    stage: 'starting',
+    message: 'جاري التحضير...',
+    listeners: []
+  });
+
+  // إرسال jobId فوراً
+  res.json({ success: true, jobId });
+
   const sessionDir = path.resolve(process.env.TEMP_DIR || './temp', jobId);
   
   try {
     logger.info(`[${jobId}] بدء عملية جديدة - ${resolution} - ${duration}s - ${format}`);
+    updateJobProgress(jobId, 5, 'preparing', 'جاري إنشاء ملف HTML...');
     
     // إنشاء مجلد الجلسة
     await fs.mkdir(sessionDir, { recursive: true });
@@ -108,6 +184,8 @@ router.post('/', async (req, res) => {
     const htmlPath = path.join(sessionDir, 'index.html');
     await fs.writeFile(htmlPath, fullHTML, 'utf8');
 
+    updateJobProgress(jobId, 10, 'capturing', 'جاري التقاط الإطارات...');
+
     // 2. التقاط الإطارات
     const { width, height } = RESOLUTIONS[resolution];
     logger.info(`[${jobId}] التقاط ${duration * fps} إطار...`);
@@ -119,8 +197,14 @@ router.post('/', async (req, res) => {
       height,
       duration,
       fps,
-      jobId
+      jobId,
+      onProgress: (percent) => {
+        const adjustedProgress = 10 + (percent * 0.7); // 10-80%
+        updateJobProgress(jobId, Math.round(adjustedProgress), 'capturing', `التقاط الإطارات: ${percent}%`);
+      }
     });
+
+    updateJobProgress(jobId, 80, 'encoding', 'جاري ترميز الفيديو...');
 
     // 3. إنشاء الفيديو
     logger.info(`[${jobId}] إنشاء ${format}...`);
@@ -132,24 +216,29 @@ router.post('/', async (req, res) => {
       fps,
       width,
       height,
-      jobId
+      jobId,
+      onProgress: (percent) => {
+        const adjustedProgress = 80 + (percent * 0.18); // 80-98%
+        updateJobProgress(jobId, Math.round(adjustedProgress), 'encoding', `ترميز الفيديو: ${percent}%`);
+      }
     });
 
     const processingTime = ((Date.now() - startTime) / 1000).toFixed(2);
     logger.info(`[${jobId}] ✅ اكتمل في ${processingTime}s`);
 
-    // الاستجابة
     const fileName = path.basename(outputPath);
-    res.json({
+    const fileSize = (await fs.stat(outputPath)).size;
+
+    // إرسال النتيجة النهائية
+    updateJobProgress(jobId, 100, 'complete', JSON.stringify({
       success: true,
-      jobId,
       downloadUrl: `/output/${fileName}`,
       fileName,
       processingTime: `${processingTime}s`,
       resolution: RESOLUTIONS[resolution].name,
       format,
-      fileSize: (await fs.stat(outputPath)).size
-    });
+      fileSize
+    }));
 
     // تنظيف الملفات المؤقتة (بعد 5 دقائق)
     setTimeout(async () => {
@@ -164,16 +253,12 @@ router.post('/', async (req, res) => {
   } catch (error) {
     logger.error(`[${jobId}] خطأ: ${error.message}`, { stack: error.stack });
     
+    updateJobProgress(jobId, 0, 'error', error.message);
+    
     // تنظيف عند الخطأ
     try {
       await fs.rm(sessionDir, { recursive: true, force: true });
     } catch {}
-
-    res.status(500).json({
-      success: false,
-      error: 'فشل إنشاء الفيديو',
-      details: process.env.NODE_ENV === 'development' ? error.message : undefined
-    });
   }
 });
 

@@ -3,12 +3,14 @@ class APIManager {
     constructor() {
         // تكوين الـ API
         this.API_URL = window.location.origin;
-        this.AUTH_TOKEN = 'your-secret-token-here-change-this-12345'; // يجب أن يطابق .env
+        this.AUTH_TOKEN = 'your-secret-token-here-change-this-12345';
         
         // عناصر DOM
         this.convertBtn = document.getElementById('convert-btn');
         this.statusBox = document.getElementById('status');
         this.resultBox = document.getElementById('result');
+        
+        this.eventSource = null;
         
         this.init();
     }
@@ -49,7 +51,7 @@ class APIManager {
         this.resultBox.classList.add('hidden');
 
         // إظهار حالة البداية
-        this.showStatus('processing', '🎬 بدء عملية التحويل...', 10);
+        this.showStatus('processing', '🎬 بدء عملية التحويل...', 0);
 
         try {
             // إرسال الطلب
@@ -76,14 +78,9 @@ class APIManager {
                 throw new Error(data.error || `خطأ في الخادم: ${response.status}`);
             }
 
-            if (data.success) {
-                // نجحت العملية
-                this.showStatus('success', '✅ اكتمل التحويل بنجاح!', 100);
-                
-                // إظهار النتيجة
-                setTimeout(() => {
-                    this.showResult(data);
-                }, 500);
+            if (data.success && data.jobId) {
+                // الاشتراك في تحديثات التقدم
+                this.subscribeToProgress(data.jobId);
             } else {
                 throw new Error(data.error || 'حدث خطأ غير معروف');
             }
@@ -91,14 +88,71 @@ class APIManager {
         } catch (error) {
             console.error('Error:', error);
             this.showStatus('error', `❌ خطأ: ${error.message}`, 0);
-        } finally {
-            // إعادة تفعيل الزر
-            this.convertBtn.disabled = false;
-            this.convertBtn.innerHTML = `
-                <span class="btn-icon">🎬</span>
-                <span class="btn-text">تحويل إلى فيديو</span>
-            `;
+            this.resetButton();
         }
+    }
+
+    subscribeToProgress(jobId) {
+        // إغلاق اتصال سابق إن وجد
+        if (this.eventSource) {
+            this.eventSource.close();
+        }
+
+        this.eventSource = new EventSource(`${this.API_URL}/api/render/progress/${jobId}`);
+
+        this.eventSource.onmessage = (event) => {
+            try {
+                const data = JSON.parse(event.data);
+                
+                if (data.stage === 'complete') {
+                    // اكتمل التحويل
+                    this.eventSource.close();
+                    this.eventSource = null;
+                    
+                    const result = JSON.parse(data.message);
+                    this.showStatus('success', '✅ اكتمل التحويل بنجاح!', 100);
+                    
+                    setTimeout(() => {
+                        this.showResult(result);
+                    }, 500);
+                    
+                    this.resetButton();
+                    
+                } else if (data.stage === 'error') {
+                    // حدث خطأ
+                    this.eventSource.close();
+                    this.eventSource = null;
+                    
+                    this.showStatus('error', `❌ خطأ: ${data.message}`, 0);
+                    this.resetButton();
+                    
+                } else {
+                    // تحديث التقدم
+                    this.showStatus('processing', data.message, data.progress);
+                }
+            } catch (e) {
+                console.error('Error parsing SSE data:', e);
+            }
+        };
+
+        this.eventSource.onerror = (error) => {
+            console.error('SSE Error:', error);
+            // لا نغلق مباشرة - قد يكون انقطاع مؤقت
+            setTimeout(() => {
+                if (this.eventSource && this.eventSource.readyState === EventSource.CLOSED) {
+                    this.showStatus('error', '❌ انقطع الاتصال بالخادم', 0);
+                    this.resetButton();
+                }
+            }, 5000);
+        };
+    }
+
+    resetButton() {
+        this.convertBtn.disabled = false;
+        this.convertBtn.innerHTML = `
+            <span class="btn-icon">🎬</span>
+            <span class="btn-text">تحويل إلى فيديو</span>
+        `;
     }
 
     showStatus(type, message, progress) {
@@ -110,6 +164,9 @@ class APIManager {
 
         statusText.textContent = message;
         progressFill.style.width = `${progress}%`;
+        
+        // إضافة transition سلسة
+        progressFill.style.transition = 'width 0.3s ease-out';
 
         // تحديث أيقونة الحالة
         const statusIcon = this.statusBox.querySelector('.status-icon');
