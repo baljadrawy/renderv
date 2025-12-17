@@ -1,1 +1,7 @@
+node_modules
+temp
+output
+logs
+.git
+.env
 
