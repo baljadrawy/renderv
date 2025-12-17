@@ -211,6 +211,7 @@ router.post('/', async (req, res) => {
       fps,
       width,
       height,
+      duration,
       jobId,
       onProgress: (percent) => {
         // توزيع النسبة: التحويل يأخذ من 80% إلى 98%
