@@ -7,17 +7,19 @@ const fs = require('fs');
 const winston = require('winston');
 const rateLimit = require('express-rate-limit');
 
+// استدعاء المسارات
 const renderRouter = require('./routes/render');
-const projectsRouter = require('./routes/projects');
+// تأكد من وجود ملف projects.js أو قم بتعليق هذا السطر مؤقتاً
+const projectsRouter = require('./routes/projects'); 
 const { scheduleCleanup } = require('./utils/cleanup');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-// Trust proxy for rate limiting behind reverse proxy
+// إعداد Trust Proxy (ضروري لـ Render و Rate Limiting)
 app.set('trust proxy', 1);
 
-// Logger
+// إعداد Logger
 const logger = winston.createLogger({
   level: 'info',
   format: winston.format.combine(
@@ -25,22 +27,20 @@ const logger = winston.createLogger({
     winston.format.json()
   ),
   transports: [
-    new winston.transports.File({ 
-      filename: path.join(process.env.LOG_DIR || './logs', 'error.log'), 
-      level: 'error' 
-    }),
-    new winston.transports.File({ 
-      filename: path.join(process.env.LOG_DIR || './logs', 'combined.log') 
-    }),
     new winston.transports.Console({
-      format: winston.format.simple()
+      format: winston.format.combine(
+        winston.format.colorize(),
+        winston.format.simple()
+      )
     })
+    // في Docker، الكتابة للملفات قد لا تكون مفيدة لأنها تختفي عند إعادة التشغيل
+    // الـ Console هو الأهم في Render
   ]
 });
 
 global.logger = logger;
 
-// إنشاء المجلدات المطلوبة
+// إنشاء المجلدات الضرورية
 const dirs = [
   process.env.TEMP_DIR || './temp',
   process.env.OUTPUT_DIR || './output',
@@ -48,15 +48,17 @@ const dirs = [
 ];
 
 dirs.forEach(dir => {
-  if (!fs.existsSync(dir)) {
-    fs.mkdirSync(dir, { recursive: true });
-    logger.info(`Created directory: ${dir}`);
+  const absolutePath = path.resolve(dir); // تحويل لمسار مطلق للأمان
+  if (!fs.existsSync(absolutePath)) {
+    fs.mkdirSync(absolutePath, { recursive: true });
+    logger.info(`Created directory: ${absolutePath}`);
   }
 });
 
 // Middleware
 app.use(helmet({
-  contentSecurityPolicy: false,
+  contentSecurityPolicy: false, // تعطيل CSP مؤقتاً لتشغيل السكربتات المضمنة
+  crossOriginEmbedderPolicy: false
 }));
 
 app.use(cors({
@@ -65,17 +67,20 @@ app.use(cors({
     : '*'
 }));
 
-app.use(express.json({ limit: '10mb' }));
-app.use(express.static('frontend'));
+app.use(express.json({ limit: '50mb' })); // زيادة الحد لاستقبال صور Base64 إن لزم
+
+// تقديم ملفات الواجهة الأمامية (Frontend)
+// التعديل: استخدام path.join لضمان المسار الصحيح داخل Docker
+app.use(express.static(path.join(__dirname, '../frontend')));
+
+// تقديم ملفات الفيديو الناتجة
+app.use('/output', express.static(path.resolve(process.env.OUTPUT_DIR || './output')));
 
 // Rate Limiter
 const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 دقيقة
-  max: process.env.RATE_LIMIT || 20,
-  message: { 
-    success: false, 
-    error: 'كثير من الطلبات، حاول بعد قليل' 
-  }
+  windowMs: 15 * 60 * 1000, 
+  max: process.env.RATE_LIMIT || 50, // رفع الحد قليلاً للتجربة
+  message: { success: false, error: 'تجاوزت حد الطلبات المسموح به' }
 });
 
 app.use('/api/', limiter);
@@ -84,64 +89,30 @@ app.use('/api/', limiter);
 app.use('/api/render', renderRouter);
 app.use('/api/projects', projectsRouter);
 
-// تقديم الفيديوهات
-app.use('/output', express.static(process.env.OUTPUT_DIR || './output'));
-
-// الصفحة الرئيسية
-app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, '../frontend', 'index.html'));
-});
-
 // Health check
 app.get('/health', (req, res) => {
-  res.json({ 
-    status: 'OK', 
-    uptime: process.uptime(),
-    timestamp: new Date().toISOString()
-  });
+  res.json({ status: 'OK', uptime: process.uptime() });
 });
 
-// 404 Handler
-app.use((req, res) => {
-  res.status(404).json({ 
-    success: false, 
-    error: 'المسار غير موجود' 
-  });
+// توجيه أي طلب آخر للصفحة الرئيسية (SPA Fallback)
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, '../frontend', 'index.html'));
 });
 
 // Error Handler
 app.use((err, req, res, next) => {
-  logger.error(`Error: ${err.message}`, { 
-    stack: err.stack,
-    url: req.url,
-    method: req.method
-  });
-  
+  logger.error(`Error: ${err.message}`, { stack: err.stack });
   res.status(500).json({ 
     success: false, 
-    error: 'حدث خطأ في الخادم',
-    message: process.env.NODE_ENV === 'development' ? err.message : undefined
+    error: 'حدث خطأ في الخادم' 
   });
 });
 
-// Start Server
+// تشغيل السيرفر
 app.listen(PORT, () => {
   logger.info(`🚀 Server running on port ${PORT}`);
-  logger.info(`📁 Output: ${process.env.OUTPUT_DIR || './output'}`);
-  logger.info(`🗑️  Cleanup interval: ${process.env.CLEANUP_INTERVAL || 3600000}ms`);
   logger.info(`🌍 Environment: ${process.env.NODE_ENV || 'development'}`);
   
-  // بدء تنظيف تلقائي
+  // تشغيل التنظيف التلقائي
   scheduleCleanup();
-});
-
-// Graceful Shutdown
-process.on('SIGTERM', () => {
-  logger.info('SIGTERM received, shutting down gracefully');
-  process.exit(0);
-});
-
-process.on('SIGINT', () => {
-  logger.info('SIGINT received, shutting down gracefully');
-  process.exit(0);
 });
